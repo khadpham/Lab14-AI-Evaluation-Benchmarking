@@ -6,3 +6,5 @@ reports/
 data/golden_set.jsonl
 .kilo
 day14-ai-evaluation-benchmarking.pdf
+data/vector_db
+data/chunks_metadata.json
