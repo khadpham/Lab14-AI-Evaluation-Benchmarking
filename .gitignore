@@ -3,8 +3,6 @@ __pycache__/
 *.pyc
 .DS_Store
 reports/
-# data/golden_set.jsonl
+data/vector_db
 .kilo
 day14-ai-evaluation-benchmarking.pdf
-data/vector_db
-data/chunks_metadata.json
