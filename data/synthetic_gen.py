@@ -33,6 +33,7 @@ Each case schema:
 import json
 import os
 import random
+import sys
 from typing import List, Dict
 
 # Load chunk metadata
@@ -669,74 +670,59 @@ MULTI_TURN_CASES = [
 # =============================================================================
 
 def generate_test_cases() -> List[Dict]:
-    """Generate 100 test cases with proper distribution."""
-    all_cases = []
-
-    # Category distribution
-    distribution = {
-        "factual": 25,
-        "paraphrase": 20,
-        "ambiguous": 20,
-        "adversarial": 15,
-        "multi_turn": 20
+    """Generate exactly 50 UNIQUE test cases."""
+    target_total = 50
+    target_distribution = {
+        "factual": 15,
+        "paraphrase": 10,
+        "ambiguous": 8,
+        "adversarial": 7,
+        "multi_turn": 10,
     }
 
-    # 1. Factual cases - take from knowledge base
+    all_cases = []
+    used_questions = set()
+
+    def add_case(case: Dict) -> bool:
+        q = case["question"].strip()
+        if q in used_questions:
+            return False
+        used_questions.add(q)
+        all_cases.append(case)
+        return True
+
     factual_pool = []
     for doc_kb in KNOWLEDGE_BASE.values():
         factual_pool.extend(doc_kb)
     random.shuffle(factual_pool)
+    factual_lookup = {qa["question"].strip(): qa for qa in factual_pool}
 
-    factual_cases = []
-    for i in range(distribution["factual"]):
-        qa = factual_pool[i % len(factual_pool)]
-        case = {
+    for i, qa in enumerate(factual_pool):
+        if sum(1 for c in all_cases if c["metadata"]["type"] == "factual") >= target_distribution["factual"]:
+            break
+        add_case({
             "question": qa["question"],
             "expected_answer": qa["expected_answer"],
             "ground_truth_doc_ids": qa["ground_truth_doc_ids"],
             "ground_truth_chunk_ids": qa["ground_truth_chunk_ids"],
             "metadata": {
                 "type": "factual",
-                "difficulty": "easy" if i < 15 else "medium",
+                "difficulty": "easy" if i < 8 else "medium",
                 "category": qa["ground_truth_doc_ids"][0] if qa["ground_truth_doc_ids"] else "unknown",
-                "domain": "hr" if "hr" in qa["ground_truth_doc_ids"][0] else "it" if "it" in qa["ground_truth_doc_ids"][0] else "cs"
-            }
-        }
-        factual_cases.append(case)
+                "domain": "hr" if qa["ground_truth_doc_ids"] and "hr" in str(qa["ground_truth_doc_ids"][0]) else "it",
+            },
+        })
 
-    all_cases.extend(factual_cases)
-
-    # 2. Paraphrase cases
-    paraphrase_cases = []
-    paraphrase_pool = list(PARAPHRASE_TEMPLATES)
-    random.shuffle(paraphrase_pool)
-
-    for i in range(distribution["paraphrase"]):
-        orig_q, para_q = paraphrase_pool[i % len(paraphrase_pool)]
-        # Find original Q&A
-        for doc_kb in KNOWLEDGE_BASE.values():
-            for qa in doc_kb:
-                if qa["question"].strip() == orig_q.strip():
-                    case = {
-                        "question": para_q,
-                        "expected_answer": qa["expected_answer"],
-                        "ground_truth_doc_ids": qa["ground_truth_doc_ids"],
-                        "ground_truth_chunk_ids": qa["ground_truth_chunk_ids"],
-                        "metadata": {
-                            "type": "paraphrase",
-                            "difficulty": "easy" if i < 10 else "medium",
-                            "category": qa["ground_truth_doc_ids"][0] if qa["ground_truth_doc_ids"] else "unknown",
-                            "domain": "hr" if "hr" in qa["ground_truth_doc_ids"][0] else "it" if "it" in qa["ground_truth_doc_ids"][0] else "cs"
-                        }
-                    }
-                    paraphrase_cases.append(case)
-                    break
-
-    # Fill remaining with generic paraphrases
-    while len(paraphrase_cases) < distribution["paraphrase"]:
-        qa = factual_pool[len(paraphrase_cases) % len(factual_pool)]
-        case = {
-            "question": f"Hãy cho tôi biết: {qa['question']}",
+    random.shuffle(PARAPHRASE_TEMPLATES)
+    paraphrase_count = 0
+    for orig, para in PARAPHRASE_TEMPLATES:
+        if paraphrase_count >= target_distribution["paraphrase"]:
+            break
+        qa = factual_lookup.get(orig.strip())
+        if not qa:
+            continue
+        if add_case({
+            "question": para,
             "expected_answer": qa["expected_answer"],
             "ground_truth_doc_ids": qa["ground_truth_doc_ids"],
             "ground_truth_chunk_ids": qa["ground_truth_chunk_ids"],
@@ -744,86 +730,84 @@ def generate_test_cases() -> List[Dict]:
                 "type": "paraphrase",
                 "difficulty": "medium",
                 "category": qa["ground_truth_doc_ids"][0] if qa["ground_truth_doc_ids"] else "unknown",
-                "domain": "hr" if "hr" in qa["ground_truth_doc_ids"][0] else "it" if "it" in qa["ground_truth_doc_ids"][0] else "cs"
-            }
-        }
-        paraphrase_cases.append(case)
+                "domain": "hr" if qa["ground_truth_doc_ids"] and "hr" in str(qa["ground_truth_doc_ids"][0]) else "it",
+            },
+        }):
+            paraphrase_count += 1
 
-    all_cases.extend(paraphrase_cases[:distribution["paraphrase"]])
+    if paraphrase_count < target_distribution["paraphrase"]:
+        for qa in factual_pool:
+            if paraphrase_count >= target_distribution["paraphrase"]:
+                break
+            if add_case({
+                "question": f"Cho biết giúp tôi: {qa['question']}",
+                "expected_answer": qa["expected_answer"],
+                "ground_truth_doc_ids": qa["ground_truth_doc_ids"],
+                "ground_truth_chunk_ids": qa["ground_truth_chunk_ids"],
+                "metadata": {
+                    "type": "paraphrase",
+                    "difficulty": "medium",
+                    "category": qa["ground_truth_doc_ids"][0] if qa["ground_truth_doc_ids"] else "unknown",
+                    "domain": "hr" if qa["ground_truth_doc_ids"] and "hr" in str(qa["ground_truth_doc_ids"][0]) else "it",
+                },
+            }):
+                paraphrase_count += 1
 
-    # 3. Ambiguous cases
-    ambiguous_pool = list(AMBIGUOUS_CASES)
-    random.shuffle(ambiguous_pool)
-
-    ambiguous_cases = []
-    for i in range(distribution["ambiguous"]):
-        amb = ambiguous_pool[i % len(ambiguous_pool)]
-        case = {
-            "question": amb["question"],
-            "expected_answer": amb["expected_answer"],
-            "ground_truth_doc_ids": amb["ground_truth_doc_ids"],
-            "ground_truth_chunk_ids": amb["ground_truth_chunk_ids"],
+    random.shuffle(AMBIGUOUS_CASES)
+    for case in AMBIGUOUS_CASES[:target_distribution["ambiguous"]]:
+        add_case({
+            **case,
             "metadata": {
                 "type": "ambiguous",
-                "difficulty": "medium" if i < 10 else "hard",
-                "category": amb["ground_truth_doc_ids"][0] if amb["ground_truth_doc_ids"] else "out_of_context",
-                "domain": "hr" if amb["ground_truth_doc_ids"] and "hr" in amb["ground_truth_doc_ids"][0] else "mixed"
-            }
-        }
-        ambiguous_cases.append(case)
+                "difficulty": "hard",
+                "category": "out_of_context" if not case["ground_truth_doc_ids"] else "edge_case",
+                "domain": "mixed",
+            },
+        })
 
-    all_cases.extend(ambiguous_cases)
-
-    # 4. Adversarial cases
-    adversarial_pool = list(ADVERSARIAL_CASES)
-    random.shuffle(adversarial_pool)
-
-    adversarial_cases = []
-    for i in range(distribution["adversarial"]):
-        adv = adversarial_pool[i % len(adversarial_pool)]
-        case = {
-            "question": adv["question"],
-            "expected_answer": adv["expected_answer"],
-            "ground_truth_doc_ids": adv["ground_truth_doc_ids"],
-            "ground_truth_chunk_ids": adv["ground_truth_chunk_ids"],
+    random.shuffle(ADVERSARIAL_CASES)
+    for case in ADVERSARIAL_CASES[:target_distribution["adversarial"]]:
+        add_case({
+            **case,
             "metadata": {
                 "type": "adversarial",
                 "difficulty": "hard",
-                "category": "prompt_injection" if i < 5 else "goal_hijacking",
-                "domain": "hr" if adv["ground_truth_doc_ids"] and "hr" in str(adv["ground_truth_doc_ids"]) else "it" if adv["ground_truth_doc_ids"] and "it" in str(adv["ground_truth_doc_ids"]) else "mixed"
-            }
-        }
-        adversarial_cases.append(case)
+                "category": "prompt_injection",
+                "domain": "mixed",
+            },
+        })
 
-    all_cases.extend(adversarial_cases)
-
-    # 5. Multi-turn cases
-    multi_pool = list(MULTI_TURN_CASES)
-    random.shuffle(multi_pool)
-
-    multi_cases = []
-    for i in range(distribution["multi_turn"]):
-        mt = multi_pool[i % len(multi_pool)]
-        case = {
-            "question": mt["question"],
-            "expected_answer": mt["expected_answer"],
-            "ground_truth_doc_ids": mt["ground_truth_doc_ids"],
-            "ground_truth_chunk_ids": mt["ground_truth_chunk_ids"],
+    random.shuffle(MULTI_TURN_CASES)
+    for case in MULTI_TURN_CASES[:target_distribution["multi_turn"]]:
+        add_case({
+            **case,
             "metadata": {
                 "type": "multi_turn",
-                "difficulty": "easy" if i < 10 else "medium",
-                "category": mt["ground_truth_doc_ids"][0] if mt["ground_truth_doc_ids"] else "unknown",
-                "domain": "hr" if mt["ground_truth_doc_ids"] and "hr" in str(mt["ground_truth_doc_ids"]) else "it"
-            }
-        }
-        multi_cases.append(case)
+                "difficulty": "medium",
+                "category": case["ground_truth_doc_ids"][0] if case["ground_truth_doc_ids"] else "unknown",
+                "domain": "mixed",
+            },
+        })
 
-    all_cases.extend(multi_cases)
+    if len(all_cases) < target_total:
+        for qa in factual_pool:
+            if len(all_cases) >= target_total:
+                break
+            add_case({
+                "question": f"[Bo sung] {qa['question']}",
+                "expected_answer": qa["expected_answer"],
+                "ground_truth_doc_ids": qa["ground_truth_doc_ids"],
+                "ground_truth_chunk_ids": qa["ground_truth_chunk_ids"],
+                "metadata": {
+                    "type": "factual",
+                    "difficulty": "medium",
+                    "category": qa["ground_truth_doc_ids"][0] if qa["ground_truth_doc_ids"] else "unknown",
+                    "domain": "hr" if qa["ground_truth_doc_ids"] and "hr" in str(qa["ground_truth_doc_ids"][0]) else "it",
+                },
+            })
 
-    # Shuffle all cases
     random.shuffle(all_cases)
-
-    return all_cases
+    return all_cases[:target_total]
 
 
 def save_to_jsonl(test_cases: List[Dict], filepath: str):
@@ -835,9 +819,12 @@ def save_to_jsonl(test_cases: List[Dict], filepath: str):
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
     print("=" * 70)
     print("AI EVALUATION FACTORY - SYNTHETIC DATA GENERATOR")
-    print("Stage 1: Golden Dataset Generation (100 Test Cases)")
+    print("Stage 1: Golden Dataset Generation (50 Test Cases)")
     print("=" * 70)
 
     # Generate test cases
@@ -878,7 +865,7 @@ def main():
                 break
 
     print("\n" + "=" * 70)
-    print("Hoan thanh! 100 test cases da san sang.")
+    print("Hoan thanh! 50 test cases da san sang.")
     print("=" * 70)
 
 
