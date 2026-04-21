@@ -24,17 +24,17 @@ class MultiModelJudge:
         }
 
 async def run_benchmark_with_results(agent_version: str):
-    print(f"🚀 Khởi động Benchmark cho {agent_version}...")
+    print(f"[BENCHMARK] Khoi dong Benchmark cho {agent_version}...")
 
     if not os.path.exists("data/golden_set.jsonl"):
-        print("❌ Thiếu data/golden_set.jsonl. Hãy chạy 'python data/synthetic_gen.py' trước.")
+        print("[ERROR] Thieu data/golden_set.jsonl. Hay chay 'python data/synthetic_gen.py' truoc.")
         return None, None
 
     with open("data/golden_set.jsonl", "r", encoding="utf-8") as f:
         dataset = [json.loads(line) for line in f if line.strip()]
 
     if not dataset:
-        print("❌ File data/golden_set.jsonl rỗng. Hãy tạo ít nhất 1 test case.")
+        print("[ERROR] File data/golden_set.jsonl rong. Hay tao it nhat 1 test case.")
         return None, None
 
     runner = BenchmarkRunner(MainAgent(), ExpertEvaluator(), MultiModelJudge())
@@ -62,10 +62,10 @@ async def main():
     v2_results, v2_summary = await run_benchmark_with_results("Agent_V2_Optimized")
     
     if not v1_summary or not v2_summary:
-        print("❌ Không thể chạy Benchmark. Kiểm tra lại data/golden_set.jsonl.")
+        print("[ERROR] Khong the chay Benchmark. Kiem tra lai data/golden_set.jsonl.")
         return
 
-    print("\n📊 --- KẾT QUẢ SO SÁNH (REGRESSION) ---")
+    print("\n[KET QUA SO SANH - REGRESSION]")
     delta = v2_summary["metrics"]["avg_score"] - v1_summary["metrics"]["avg_score"]
     print(f"V1 Score: {v1_summary['metrics']['avg_score']}")
     print(f"V2 Score: {v2_summary['metrics']['avg_score']}")
@@ -78,9 +78,9 @@ async def main():
         json.dump(v2_results, f, ensure_ascii=False, indent=2)
 
     if delta > 0:
-        print("✅ QUYẾT ĐỊNH: CHẤP NHẬN BẢN CẬP NHẬT (APPROVE)")
+        print("[APPROVE] Quyet dinh: Chap nhan ban cap nhat")
     else:
-        print("❌ QUYẾT ĐỊNH: TỪ CHỐI (BLOCK RELEASE)")
+        print("[BLOCK] Quyet dinh: Tu choi release")
 
 if __name__ == "__main__":
     asyncio.run(main())
