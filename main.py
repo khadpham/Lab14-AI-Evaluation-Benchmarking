@@ -5,6 +5,7 @@ import re
 import time
 from engine.runner import BenchmarkRunner
 from engine.retrieval_eval import RetrievalEvaluator
+from engine.dataset_utils import load_jsonl_records
 from agent.main_agent import MainAgent
 from engine.llm_judge import LLMJudge
 
@@ -33,13 +34,16 @@ class ExpertEvaluator:
 
     async def score(self, case, resp):
         retrieved_ids = (
-            resp.get("retrieved_ids")
+            resp.get("retrieved_chunk_ids")
+            or resp.get("metadata", {}).get("retrieved_chunk_ids")
+            or resp.get("retrieved_ids")
             or resp.get("metadata", {}).get("retrieved_ids")
             or resp.get("metadata", {}).get("sources")
             or []
         )
         expected_ids = (
-            case.get("expected_retrieval_ids")
+            case.get("ground_truth_chunk_ids")
+            or case.get("expected_retrieval_ids")
             or case.get("ground_truth_doc_ids")
             or []
         )
@@ -63,8 +67,7 @@ async def run_benchmark_with_results(agent_version: str):
         print("[ERROR] Thieu data/golden_set.jsonl. Hay chay 'python data/synthetic_gen.py' truoc.")
         return None, None
 
-    with open("data/golden_set.jsonl", "r", encoding="utf-8") as f:
-        dataset = [json.loads(line) for line in f if line.strip()]
+    dataset = load_jsonl_records("data/golden_set.jsonl")
 
     if not dataset:
         print("[ERROR] File data/golden_set.jsonl rong. Hay tao it nhat 1 test case.")

@@ -126,13 +126,7 @@ def parse_document_file(filepath: str, doc_config: Dict) -> List[Dict]:
 
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
         if match:
-            section_content = match.group(0).strip()
-
-            # Skip header lines (first 6 lines are metadata)
-            lines = section_content.split("\n")
-            if len(lines) > 6:
-                lines = lines[6:]
-            section_content = "\n".join(lines).strip()
+            section_content = re.sub(r"\n{3,}", "\n\n", match.group(0).strip()).strip()
 
             if len(section_content) > 50:  # Skip very short sections
                 chunk_id = f"{doc_id}_{section_id}_{section_title}"
