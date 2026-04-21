@@ -1,0 +1,25 @@
+{
+  "metadata": {
+    "version": "Agent_V2_Optimized",
+    "total": 100,
+    "timestamp": "2026-04-21 16:47:43",
+    "judge_models": {
+      "gemini": "gemini-2.5-flash",
+      "groq": "qwen/qwen3-32b"
+    },
+    "runner": {
+      "max_concurrency": 2,
+      "max_retries": 2
+    }
+  },
+  "metrics": {
+    "avg_score": 3.8210526315789473,
+    "hit_rate": 0.64,
+    "mrr": 0.5116666666666666,
+    "agreement_rate": 0.0,
+    "conflict_rate": 0.0,
+    "avg_latency_sec": 6.888319101000007,
+    "pass_rate": 0.7,
+    "error_rate": 0.05
+  }
+}
