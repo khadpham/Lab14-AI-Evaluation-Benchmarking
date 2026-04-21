@@ -60,6 +60,18 @@ Báo cáo 5 Whys phải chỉ ra được lỗi nằm ở đâu: Ingestion pipel
 # 1. Cài đặt dependencies
 pip install -r requirements.txt
 
+# 1.1) Cấu hình API key cho Gemini Judge
+# Tạo file .env ở root repo với:
+# GEMINI_API_KEY=your_gemini_api_key_here
+# GROQ_API_KEY=your_groq_api_key_here
+# LLM_JUDGE_GEMINI_MODEL=gemini-2.5-flash
+# LLM_JUDGE_GROQ_MODEL=qwen/qwen3-32b
+# BENCHMARK_MAX_CONCURRENCY=5
+# BENCHMARK_MAX_RETRIES=2
+
+# 1.2) Smoke test Judge (kiểm tra kết nối Gemini thực)
+python engine/llm_judge.py
+
 # 2. Tạo Golden Dataset (chạy trước khi benchmark)
 python data/synthetic_gen.py
 
